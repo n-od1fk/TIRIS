@@ -206,6 +206,16 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Frontend dependencies and compiled output
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+
+# Frontend dependencies and compiled output
+node_modules/
+frontend/dist/
+
 # PyPI configuration file
 .pypirc
 
@@ -216,3 +226,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Downloaded model weights and caches are local artifacts, never source files.
+.model-cache/

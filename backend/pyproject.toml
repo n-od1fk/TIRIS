@@ -1,0 +1,56 @@
+[project]
+name = "tiris-backend"
+version = "0.1.0"
+description = "Backend API for the Temporal Interest Retrieval Intelligence System"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "beautifulsoup4>=4.13,<5.0",
+    "celery[redis]>=5.5,<6.0",
+    "feedparser>=6.0,<7.0",
+    "httpx>=0.28,<1.0",
+    "alembic>=1.15,<2.0",
+    "fastapi>=0.115,<1.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "pgvector>=0.3,<1.0",
+    "pydantic-settings>=2.7,<3.0",
+    "sqlalchemy>=2.0,<3.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+local-embedding = [
+    "sentence-transformers>=3.4,<6.0",
+    "transformers>=4.51,<5.0",
+    "torch>=2.6,<3.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", extra = "local-embedding", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1.0",
+    "pytest>=8.3,<10.0",
+    "pytest-cov>=6.0,<8.0",
+    "ruff>=0.11,<1.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+markers = [
+    "integration: requires the local PostgreSQL container",
+]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
