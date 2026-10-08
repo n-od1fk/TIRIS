@@ -7,6 +7,6 @@ COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./
 ENV PATH="/app/backend/.venv/bin:$PATH" PYTHONUNBUFFERED=1
-RUN useradd --create-home --uid 10001 tiris && mkdir -p /models && chown tiris:tiris /models
+RUN useradd --create-home --uid 10001 tiris && mkdir -p /models /run/tiris-secrets && chown tiris:tiris /models /run/tiris-secrets && chmod 700 /run/tiris-secrets
 USER tiris
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

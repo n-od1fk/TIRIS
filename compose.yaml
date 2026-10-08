@@ -41,13 +41,17 @@ services:
       POSTGRES_PORT: 5432
       REDIS_URL: redis://redis:6379/0
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      MATERIAL_MAX_BYTES: ${MATERIAL_MAX_BYTES:-20000000}
+      PDF_MAX_PAGES: ${PDF_MAX_PAGES:-200}
       FETCH_DNS_MODE: ${FETCH_DNS_MODE:-system}
       BAILIAN_API_KEY: ${BAILIAN_API_KEY:-}
       BAILIAN_BASE_URL: ${BAILIAN_BASE_URL:-}
       BAILIAN_EMBEDDING_REVISION: ${BAILIAN_EMBEDDING_REVISION:-service-v1}
       EMBEDDING_CACHE_DIR: /models
+      SOURCE_CREDENTIAL_KEY_FILE: /run/tiris-secrets/source-key
     volumes:
       - embedding_models:/models:ro
+      - source_secrets:/run/tiris-secrets
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     ports:
       - "127.0.0.1:8000:8000"
@@ -68,6 +72,7 @@ services:
     environment: *backend_environment
     volumes:
       - embedding_models:/models:ro
+      - source_secrets:/run/tiris-secrets:ro
     command: ["celery", "-A", "app.workers.tasks:celery_app", "worker", "--pool=solo", "--concurrency=1", "--loglevel=INFO"]
     depends_on:
       api:
@@ -84,6 +89,8 @@ services:
   beat:
     build: ./backend
     environment: *backend_environment
+    volumes:
+      - source_secrets:/run/tiris-secrets:ro
     command: ["celery", "-A", "app.workers.tasks:celery_app", "beat", "--schedule=/tmp/tiris-beat", "--loglevel=INFO"]
     depends_on:
       api:
@@ -93,3 +100,4 @@ volumes:
   postgres_data:
   redis_data:
   embedding_models:
+  source_secrets:

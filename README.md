@@ -8,6 +8,10 @@ Temporal Interest Retrieval Intelligence System
 不是完整推荐 Agent。侧边栏为今日推荐、资料库、来源和设置，不显示开发任务控制面板。
 保存关注方向/学习目标后，资讯流按需补充，Beat 每 15 分钟检查后台补充；不设每日 10 条的总上限。
 动态行为画像、相邻探索、RAG、LangGraph、AI 要点摘要、邮件和训练排序模型尚未实现。
+新增本地可扩展平台工具：GitHub 平台列表/查询/README、RSS 文章正文、网页正文、arXiv Atom/PDF 和 Black Hat 公开材料连接器。
+统一返回正文、原文链接、章节/页码、附件信息和原始文件；不完整会标记，未生成 AI 摘要。
+它们暂为手动接入工具，不代表已统一接入自动兴趣发现。GitHub、RSS 和 arXiv 已取得真实正文与原材料；Black Hat 仍 403。
+使用、凭证位置、原文件范围与扩展方法见 [平台数据接入](docs/platform-data-access.md)。
 见 [实施进度](docs/implementation-progress.md)、[阶段一学习任务](docs/stage-one-learning.md)
 与 [画像配置学习任务](docs/stage-two-profile-learning.md)。
 当前学习入口：[连续资讯流与本地身份](docs/simple-feed-learning.md)；旧发现控制面板说明保留为历史记录。
@@ -30,11 +34,16 @@ docker compose exec api python -m app.cli seed
 滚动加载更多，后台分批补充；来源耗尽/失败时退避等待，不用重复或无关内容凑数。
 “资料库”包含收藏和更新提醒；“设置”仅提供长期画像、浅色/暗色和本地身份。
 侧边栏底部可直接切换身份，切换后重新加载该身份的推荐、收藏、更新提醒和来源，不沿用旧身份页面数据。
-“来源”可添加 RSS/Atom 订阅、指定 GitHub 仓库或 Black Hat 公开索引，支持启停、手动同步和失败状态。
-添加后点击“同步”，完成后返回推荐页面；只有符合画像的候选才会推荐，采集不会自动收藏。
+“来源”统一输入网站、栏目、平台资源或订阅地址，自动识别 RSS/Atom/JSON Feed，展示验证结果、实际采集地址和内容预览；选择一个或多个有效订阅后复验并保存，同时获取首批候选。
+不再手动选择平台类型，不提供快捷填入。GitHub 仓库/公开用户、YouTube 频道/播放列表支持少量公开 Feed 转换；没有有效订阅时说明缺失信息，不能假装接入成功。
+GitHub 平台连接直接填写 `https://github.com/`，检测后在网页填写 Token（公开读取可留空），验证并查看预览后保存，不用修改 `.env` 或使用 Swagger。编辑时可保留、替换或移除凭证，按来源和身份加密保存、不回显。
+凭证使用说明与独立密钥卷备份要求见 [网页填写平台凭证](docs/platform-credentials.md)。平台工具可查询不同仓库；尚未将新凭证接入旧的自动兴趣搜索任务。
+每条来源可编辑名称/连接、启停、同步和删除，支持撤销与重新添加；只影响当前身份，保留收藏、原文件及历史，不清空数据库。
+旧有平台连接的“平台工具”保留，仍可读取正文与原始材料；新通用订阅不保证原文全文。完整使用和支持范围见 [来源发现与验证](docs/source-onboarding.md)。
+只有符合画像的候选才会推荐，采集不会自动收藏；旧同步的节选/元数据并不等于全文。
 每个身份独立维护来源；新身份从空来源列表开始，添加、停用和同步不影响其他身份，不自动复制或初始化默认来源。
 旧版本给新身份自动添加但从未使用的默认来源会可恢复地隐藏，原身份及已使用/手动配置的来源保留。
-任意网站首页不能直接作为 RSS；其他网站需提供 Feed 或新增专用采集器。Black Hat 访问受限时仍可能失败。
+普通网页首页会先发现和验证公开订阅；GitHub 根地址走独立平台 API 适配器。其他没有 Feed 的网页、尚未适配的专有 API 和复杂认证暂不通过新表单接入。旧网页正文工具保留，Black Hat 访问受限时仍可能失败。
 没有登录。各本地身份使用独立数据范围，但不是权限边界，只应在本机使用。
 API 文档为 <http://127.0.0.1:8000/docs>，健康接口为 `/health` 和 `/health/db`。
 
@@ -75,7 +84,8 @@ GitHub 兴趣检索默认不外发；原有明确授权与匹配配置继续生�
 
 提醒依据实际标题、文本、作者、获取范围或仓库 topics 的变化，不因抓取/活跃时间变化提醒。
 新 Release 可关联收藏仓库；历史 Release 不补发，不监听每个 commit。
-RSS 只能检查仍在 Feed 的材料，不保证全文或移出 Feed 的文章更新；论文版本尚未接入。
+旧 RSS 自动同步只检查仍在 Feed 的材料，不保证全文或移出 Feed 的文章更新。
+平台工具新增文章正文读取和论文版本手动检查 API，但尚未加入统一的自动全文更新任务。
 收藏搜索发现的仓库会添加指定仓库跟踪来源。停用来源后不会自动重新启用。
 仅站内提醒，没有邮件或 GitHub Star 授权同步。连续补充刷新来源时也处理收藏更新；仅有收藏的身份可在资料库手动检查。
 
@@ -86,10 +96,11 @@ RSS 只能检查仍在 Feed 的材料，不保证全文或移出 Feed 的文章�
 `GET /api/discovery/runs/{id}/recommendations`、`POST /api/discovery/check-updates`、
 `PUT /api/items/{id}/favorite`、`GET /api/items?scope=library`、`GET /api/updates`。
 主界面：`GET /api/feed`、`POST /api/feed/refill`；身份：`GET/POST /api/identities`、`PATCH /api/identities/{id}`。
-统一来源接入：`GET /api/source-types` 获取可添加类型，`POST /api/sources` 添加，`POST /api/sources/sync` 同步。
+统一来源接入：`POST /api/sources/discover` 发现/验证/预览，`POST /api/sources/connect` 复验/保存/首次获取，`POST /api/sources/sync` 后续同步。
 来源管理：`GET /api/sources`、`PATCH /api/sources/{id}`；任务：`GET /api/jobs`。
-前端类型列表、创建地址校验与后台采集共用 `connectors/registry.py`；各平台返回统一 `FetchResult / RawItem`，进入同一溯源/版本/去重流程。
-扩展说明与小任务：[统一来源接入](docs/source-integration-learning.md)。统一接口不代表能解析任意网页。
+通用 Feed 使用统一解析器；特殊公开 Feed URL 使用 `FeedAdapter`。各平台返回统一 `FetchResult / RawItem`，进入同一溯源/版本/去重流程，来源配置保存在数据库。
+旧 `/api/source-types` 和 deprecated `POST /api/sources` 为历史工具/脚本与撤销保留，不具备新流程的验证保证；添加页面不使用平台名单。
+扩展说明与小任务：[来源发现与验证](docs/source-onboarding.md)。统一接口不代表能解析任意网页或 API。
 选择身份时发送 `X-TIRIS-User`。这只是本地分区选择，任何能访问服务的人均可切换，不能视为鉴权。
 
 ### 内部 Embedding 与开发调试接口

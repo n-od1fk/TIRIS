@@ -1,5 +1,7 @@
 # 统一来源接入与空身份
 
+> 2026-10-09 更新：当前添加页面改为输入 URL、自动发现、预览、复验后保存，详见 [来源发现与验证](source-onboarding.md)。下面的类型选择/手动 POST 为历史接口和学习记录，不是当前添加流程。
+
 ## 为什么切换后曾看起来来源没变
 
 旧 `create_identity` 自动为每个新身份插入 Cloudflare、pgvector 和 Black Hat 三条公开模板。

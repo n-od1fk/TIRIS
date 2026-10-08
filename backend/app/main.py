@@ -3,7 +3,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import Engine
@@ -11,10 +12,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api import router
 from app.config import get_settings
+from app.connectors.source_api import router as source_onboarding_router
 from app.database import check_database, engine, get_database_engine
 from app.discovery.api import router as discovery_router
 from app.discovery.feed import router as feed_router
 from app.identities import router as identities_router
+from app.platforms.api import router as platform_router
 from app.profiles.api import router as profile_router
 from app.retrieval.api import router as retrieval_router
 
@@ -53,6 +56,22 @@ app.include_router(retrieval_router)
 app.include_router(discovery_router)
 app.include_router(identities_router)
 app.include_router(feed_router)
+app.include_router(platform_router)
+app.include_router(source_onboarding_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_: Request, exc: RequestValidationError):
+    # FastAPI's default includes raw inputs. Never echo submitted credentials in 422s.
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": [
+                {"loc": list(error["loc"]), "type": error["type"], "msg": "请求字段格式不正确"}
+                for error in exc.errors()
+            ]
+        },
+    )
 
 
 @app.get("/health", response_model=ApplicationHealth)

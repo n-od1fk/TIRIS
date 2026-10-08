@@ -59,14 +59,26 @@ def execute_sync(job_id: UUID, http: SafeHTTP | None = None) -> bool:
         session.add(run)
         session.flush()
         run_id, kind, url, cursor = run.id, source.kind, source.url, source.cursor
+        connection_version = source.connection_version
     owned_http = http is None
     retry = False
     try:
         http = http or SafeHTTP()
         result = fetch_source(kind, url, cursor, http)
         with SessionLocal.begin() as session:
-            run, job = session.get(IngestionRun, run_id), session.get(Job, job_id)
-            source = session.get(Source, job.source_id)
+            source = session.scalar(select(Source).where(Source.id == source.id).with_for_update())
+            job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
+            run = session.get(IngestionRun, run_id)
+            if (
+                source.archived
+                or not source.enabled
+                or job.status != "running"
+                or source.connection_version != connection_version
+            ):
+                run.status = job.status = "failed"
+                run.error = job.error = "来源已停用或删除，未保存迟到的采集结果"
+                run.finished_at = job.finished_at = datetime.now(UTC)
+                return False
             store_items(session, source, result, run)
             run.status, job.status = "succeeded", "succeeded"
             run.finished_at = job.finished_at = datetime.now(UTC)
@@ -92,7 +104,19 @@ def execute_sync(job_id: UUID, http: SafeHTTP | None = None) -> bool:
                 "Sync failed: job=%s exception=%s frames=%s", job_id, type(exc).__name__, frames
             )
         with SessionLocal.begin() as session:
-            run, job = session.get(IngestionRun, run_id), session.get(Job, job_id)
+            source = session.scalar(select(Source).where(Source.id == source.id).with_for_update())
+            job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
+            run = session.get(IngestionRun, run_id)
+            if (
+                source.archived
+                or not source.enabled
+                or job.status != "running"
+                or source.connection_version != connection_version
+            ):
+                run.status = job.status = "failed"
+                run.error = job.error = "来源已停用或删除，未继续重试"
+                run.finished_at = job.finished_at = datetime.now(UTC)
+                return False
             retry = isinstance(exc, RetryableSourceError) and job.attempts < 4
             logger.warning(
                 "Sync attempt failed: job=%s attempt=%s retry=%s reason=%s",

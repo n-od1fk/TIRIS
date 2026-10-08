@@ -67,6 +67,11 @@ small, .muted, .scope { color: var(--muted); font-size: 12px; line-height: 1.7; 
 .message.error { background: var(--error-bg); color: var(--error); }
 .message.error button { margin-left: 12px; }
 .failure { color: var(--error); font-size: 12px; line-height: 1.7; }
+.danger { color: var(--error); }
+.feed-choice { border-top: 1px solid var(--border); padding: 12px 0; overflow-wrap: anywhere; }
+.feed-selection { display: flex; align-items: center; gap: 10px; }
+.feed-selection input { width: auto; }
+.source-preview { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 12px; }
 .overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; justify-content: center; padding: 32px 20px; z-index: 10; }
 .reader { width: min(900px, 100%); background: var(--surface); padding: 30px; border-radius: 14px; overflow: auto; }
 .reader h2 { line-height: 1.6; }
@@ -75,3 +80,6 @@ small, .muted, .scope { color: var(--muted); font-size: 12px; line-height: 1.7; 
 .reader-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.9; margin: 24px 0; }
 .startup { margin: 20vh auto; text-align: center; color: var(--muted); }
 @media (max-width: 700px) { .app-layout { grid-template-columns: 86px minmax(0, 1fr); } .sidebar { padding: 24px 8px; } .brand { padding: 0 0 24px; justify-content: center; } .brand strong { display: none; } .sidebar nav button { text-align: center; padding: 12px 2px; font-size: 13px; } .identity-label { padding: 14px 0 0; text-align: center; } .main-content { padding: 26px 14px 40px; } h1 { font-size: 20px; } .item, .settings-panel { padding: 16px; } .title-link { font-size: 17px; } .section-heading { flex-wrap: wrap; margin-bottom: 20px; } .inline-form { flex-wrap: wrap; } .inline-form label { flex-basis: 100%; } .reader { padding: 20px; } .library-tabs button { padding: 7px 9px; font-size: 12px; } }
+.platform-tools { margin-top: 1rem; display: grid; gap: .8rem; }
+.platform-candidate { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
+.platform-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 32rem; overflow: auto; font: inherit; }

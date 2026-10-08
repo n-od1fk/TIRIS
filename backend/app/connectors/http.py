@@ -146,7 +146,12 @@ class SafeHTTP:
     def close(self):
         self.client.close()
 
-    def get(self, url: str, headers: dict | None = None) -> httpx.Response:
+    def get(
+        self, url: str, headers: dict | None = None, *, max_bytes: int | None = None
+    ) -> httpx.Response:
+        byte_limit = min(
+            max_bytes or self.settings.fetch_max_bytes, self.settings.material_max_bytes
+        )
         target = canonicalize_url(url)
         request_headers = dict(headers or {})
         deadline = time.monotonic() + self.settings.fetch_timeout_seconds * 2
@@ -202,7 +207,7 @@ class SafeHTTP:
                         if time.monotonic() > deadline:
                             raise RetryableSourceError("来源下载超过总时间预算")
                         chunks.extend(chunk)
-                        if len(chunks) > self.settings.fetch_max_bytes:
+                        if len(chunks) > byte_limit:
                             raise SourceError("来源响应超过允许大小，已停止下载")
                     decoded_headers = {
                         key: value

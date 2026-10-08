@@ -245,11 +245,13 @@ def test_migration_and_schema_have_all_tables(database):
         assert set(tables) == {
             "alembic_version",
             "sources",
+            "source_discoveries",
             "jobs",
             "ingestion_runs",
             "content_items",
             "content_occurrences",
             "content_versions",
+            "original_materials",
             "long_term_profiles",
             "profile_revisions",
             "fixed_columns",

@@ -55,6 +55,9 @@ def parse_rss(data: bytes, feed_url: str, limit: int) -> FetchResult:
             if not entry.get("link") or not entry.get("title"):
                 raise ValueError
             url = canonicalize_url(urljoin(feed_url, entry.link))
+            title = plain_text(entry.title)
+            if not title:
+                raise ValueError
             published = entry.get("published_parsed")
             published_at = (
                 datetime.fromtimestamp(calendar.timegm(published), UTC) if published else None
@@ -66,7 +69,7 @@ def parse_rss(data: bytes, feed_url: str, limit: int) -> FetchResult:
                 RawItem(
                     external_id=entry.get("id") or url,
                     url=url,
-                    title=plain_text(entry.title),
+                    title=title,
                     content_type="article",
                     clean_text=clean,
                     author=entry.get("author"),
@@ -173,13 +176,15 @@ def fetch_feed(url: str, cursor: dict, http: SafeHTTP, *, parser) -> FetchResult
     response = http.get(url, conditional_headers(cursor))
     if response.status_code == 304:
         return FetchResult([], cursor=cursor, not_modified=True)
-    result = parser(response.content, url, get_settings().fetch_max_items)
+    result = parser(response.content, str(response.request.url), get_settings().fetch_max_items)
     result.cursor = next_cursor(response)
     return result
 
 
 def fetch_github(url: str, cursor: dict, http: SafeHTTP) -> FetchResult:
     settings = get_settings()
+    if urlsplit(url).path == "/":
+        raise SourceError("这是 GitHub 平台连接，请使用平台查询工具，不需要预先指定仓库")
     owner, repo = urlsplit(url).path.strip("/").split("/")
     headers = {
         "Accept": "application/vnd.github+json",

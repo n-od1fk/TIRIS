@@ -26,8 +26,23 @@ try {
   await page.screenshot({ path: 'test-results/live-compact-mobile.png' });
   await page.getByRole('button', { name: '来源', exact: true }).click();
   await expect(page.getByRole('heading', { name: '来源', exact: true })).toBeVisible();
-  await expect(page.getByLabel('来源类型', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('来源类型', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '检测接入方式', exact: true })).toBeVisible();
   await expect(page.locator('.source-card')).toHaveCount(sources.length);
+  const types = await (await page.request.get(new URL('/api/source-types', base).href)).json();
+  for (const type of types) {
+    await expect(page.getByRole('button', { name: type.label, exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('来源地址', { exact: true })).toHaveValue('');
+    await expect(page.getByLabel('来源名称', { exact: true })).toHaveValue('');
+  }
+  await expect(page.getByRole('button', { name: '删除来源', exact: true })).toHaveCount(sources.length);
+  if (sources.length) {
+    await page.getByRole('button', { name: '删除来源', exact: true }).first().click();
+    await expect(page.getByRole('button', { name: '确认删除', exact: true })).toBeVisible();
+    await page.screenshot({ path: 'test-results/live-source-delete-confirm.png' });
+    await page.getByRole('button', { name: '取消', exact: true }).click();
+    await expect(page.getByRole('button', { name: '确认删除', exact: true })).toHaveCount(0);
+  }
   if (!sources.length) await expect(page.getByText('当前身份还没有来源。', { exact: true })).toBeVisible();
   await expect(page.locator('.sources-view [role="alert"]')).toHaveCount(0);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Mobile sources overflow');
@@ -60,7 +75,7 @@ try {
     await page.getByRole('button', { name: '收藏', exact: true }).first().click();
     await expect(page.locator('.main-content > section:not([hidden]) .item')).toHaveCount(expectedLibrary.items.length);
     await page.getByRole('button', { name: '来源', exact: true }).click();
-    await expect(page.getByLabel('来源类型', { exact: true })).toBeEnabled();
+    await expect(page.getByLabel('来源地址', { exact: true })).toBeEnabled();
     await expect(page.locator('.source-card')).toHaveCount(expectedSources.length);
     if (!expectedSources.length) await expect(page.getByText('当前身份还没有来源。', { exact: true })).toBeVisible();
     for (const source of expectedSources) await expect(page.locator('.source-card').filter({ has: page.getByRole('heading', { name: source.name, exact: true }) })).toBeVisible();
@@ -70,5 +85,5 @@ try {
   const after = await (await page.request.get(new URL('/api/profile', base).href)).json();
   assert.equal(after.version, profile.version);
   assert.deepEqual(errors, []);
-  console.log(`Live compact UI smoke passed: four destinations, identity selector, sources, profile, theme, library and updates; desktop/mobile; ${data.total} candidates preserved; per-identity visible source counts ${sourceCounts.join('/')}; refill suppressed; no server writes or paid calls`);
+  console.log(`Live compact UI smoke passed: unified URL discovery form without platform dropdown/shortcuts, delete confirmation/cancel, identity selector, sources, profile, theme, library and updates; desktop/mobile; ${data.total} candidates preserved; per-identity visible source counts ${sourceCounts.join('/')}; refill suppressed; no server writes or paid calls`);
 } finally { await browser.close(); }

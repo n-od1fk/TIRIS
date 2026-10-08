@@ -229,3 +229,4 @@ __marimo__/
 
 # Downloaded model weights and caches are local artifacts, never source files.
 .model-cache/
+.local-secrets/

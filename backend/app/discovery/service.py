@@ -211,10 +211,16 @@ def candidate_rows(user_id, feed=False, rule_terms=None, columns=None, blocked=N
         query = (
             select(ContentItem, ContentVersion)
             .join(ContentVersion, ContentVersion.item_id == ContentItem.id)
+            .join(Source, Source.id == ContentVersion.source_id)
             .where(
+                Source.archived.is_(False),
                 ContentItem.user_id == user_id,
                 ContentVersion.user_id == user_id,
                 ContentVersion.id.in_(select(latest.c.id)),
+                or_(
+                    ContentVersion.metadata_json["content_status"].as_string().is_(None),
+                    ContentVersion.metadata_json["content_status"].as_string() == "full",
+                ),
                 ~ContentItem.id.in_(saved),
                 ~ContentVersion.id.in_(exposed),
                 ContentItem.candidate_expires_at > now,
@@ -465,6 +471,8 @@ def execute(run_id: UUID):
                 Source.enabled.is_(True),
                 Source.archived.is_(False),
                 Source.kind != "github_search",
+                ~Source.kind.in_(["arxiv", "web"]),
+                ~((Source.kind == "github") & (Source.url == "https://github.com/")),
             )
             if snapshot["mode"] == "updates":
                 saved_items = select(Favorite.item_id).where(

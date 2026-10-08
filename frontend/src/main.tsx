@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, selectIdentity } from './client';
+import { api, downloadMaterial, selectIdentity } from './client';
 import { DiscoveryPanel } from './DiscoveryPanel';
 import { LibraryPanel } from './LibraryPanel';
 import { SourcesPanel } from './SourcesPanel';
@@ -9,7 +9,8 @@ import type { Identity } from './SettingsPanel';
 import './style.css';
 
 type Detail = { id: string; title: string; favorite: boolean; version: number;
-  versions: { number: number; title: string; text: string; evidence_scope: string }[];
+  versions: { number: number; title: string; text: string; evidence_scope: string;
+    materials?: { filename: string; download_url: string }[] }[];
   sources: { name: string; original_url: string; external_id: string }[] };
 
 function Workspace({ identities, current, onSwitch, onIdentities }: {
@@ -58,6 +59,9 @@ function Workspace({ identities, current, onSwitch, onIdentities }: {
       <div className="reader-controls"><label>版本<select value={versionNumber} onChange={e => setVersionNumber(Number(e.target.value))}>{detail.versions.map(v => <option key={v.number} value={v.number}>v{v.number}</option>)}</select></label>
         <button disabled={busy} onClick={async () => { setBusy(true); try { await favorite(detail.id, !detail.favorite); } catch (e) { fail(e); } finally { setBusy(false); } }}>{detail.favorite ? '取消收藏' : '收藏'}</button></div>
       <small>{version?.evidence_scope}</small>
+      <div className="source-actions">{version?.materials?.map(file => <button className="subtle" key={file.download_url} disabled={busy} onClick={async () => {
+        setBusy(true); try { await downloadMaterial(file.download_url, file.filename); } catch (e) { fail(e); } finally { setBusy(false); }
+      }}>下载 {file.filename}</button>)}</div>
       <p className="reader-text">{version?.text || '未获取正文，请阅读原文。'}</p>
       {detail.sources.map(source => <p key={`${source.name}-${source.external_id}`}><a href={source.original_url} target="_blank" rel="noopener noreferrer">{source.name} · 原文 ↗</a></p>)}
     </section></div>}

@@ -4,10 +4,13 @@ version = "0.1.0"
 description = "Backend API for the Temporal Interest Retrieval Intelligence System"
 requires-python = ">=3.11,<3.13"
 dependencies = [
+    "cryptography>=46,<51",
     "beautifulsoup4>=4.13,<5.0",
     "celery[redis]>=5.5,<6.0",
     "feedparser>=6.0,<7.0",
     "httpx>=0.28,<1.0",
+    "trafilatura>=2.0,<3.0",
+    "pypdf>=6.0,<7.0",
     "alembic>=1.15,<2.0",
     "fastapi>=0.115,<1.0",
     "psycopg[binary]>=3.2,<4.0",

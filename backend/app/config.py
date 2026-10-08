@@ -23,12 +23,15 @@ class Settings(BaseSettings):
     user_id: UUID = UUID("ea83e192-1223-4755-a219-33ca3bce34bc")
     redis_url: str = "redis://localhost:6379/0"
     github_token: str = Field(default="", repr=False)
+    source_credential_key_file: Path = PROJECT_ROOT / ".local-secrets" / "source-key"
     github_api_version: str = "2026-03-10"
     fetch_timeout_seconds: int = Field(default=15, ge=1, le=60)
     fetch_max_bytes: int = Field(default=2_000_000, ge=1000, le=10_000_000)
     fetch_max_items: int = Field(default=100, ge=1, le=500)
     fetch_domain_interval_seconds: float = Field(default=1.0, ge=0.0)
     fetch_dns_mode: Literal["system", "doh"] = "system"
+    material_max_bytes: int = Field(default=20_000_000, ge=1000, le=30_000_000)
+    pdf_max_pages: int = Field(default=200, ge=1, le=300)
     embedding_cache_dir: Path = PROJECT_ROOT / ".model-cache"
     bailian_api_key: str = Field(default="", repr=False)
     # Use the region/workspace-specific base URL from your own Bailian console.

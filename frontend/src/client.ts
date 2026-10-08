@@ -39,3 +39,22 @@ export async function api<T>(path: string, init?: RequestInit, timeoutMs = 15000
     init?.signal?.removeEventListener('abort', externalAbort);
   }
 }
+
+export async function downloadMaterial(path: string, filename: string): Promise<void> {
+  const controller = new AbortController();
+  const selected = identity;
+  const timer = setTimeout(() => controller.abort(), 60000);
+  requests.add(controller);
+  try {
+    const response = await fetch(path, {
+      headers: selected ? { 'X-TIRIS-User': selected } : {}, signal: controller.signal,
+    });
+    if (!response.ok) throw new ApiError('原始文件不可用或不属于当前身份', response.status);
+    const blob = await response.blob();
+    if (identity !== selected) throw new DOMException('身份已切换', 'AbortError');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = filename; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } finally { clearTimeout(timer); requests.delete(controller); }
+}

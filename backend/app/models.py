@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -47,11 +48,52 @@ class Source(Identity, Base):
     name: Mapped[str] = mapped_column(String(200))
     kind: Mapped[str] = mapped_column(String(20))
     url: Mapped[str] = mapped_column(Text)
+    input_url: Mapped[str] = mapped_column(Text, server_default="", default="")
+    access_type: Mapped[str] = mapped_column(String(20), server_default="legacy", default="legacy")
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    connection_version: Mapped[int] = mapped_column(Integer, server_default="1", default=1)
+    credential_mode: Mapped[str] = mapped_column(
+        String(16), server_default="legacy_env", default="legacy_env"
+    )
+    credentials_ciphertext: Mapped[str | None] = mapped_column(Text)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     archived: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
     cursor: Mapped[dict] = mapped_column(JSON, default=dict)
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def fetch_url(self):
+        return self.url
+
+    @property
+    def credential_configured(self):
+        from app.config import get_settings
+
+        if self.credential_mode == "stored":
+            return bool(self.credentials_ciphertext)
+        return (
+            self.kind == "github"
+            and self.credential_mode == "legacy_env"
+            and bool(get_settings().github_token)
+        )
+
+    @property
+    def sync_supported(self):
+        from app.connectors.registry import get_connector, platform_only_reader
+
+        connector = get_connector(self.kind)
+        return connector.reader is not platform_only_reader and not (
+            self.kind == "github" and self.url.rstrip("/") == "https://github.com"
+        )
+
+
+class SourceDiscovery(Identity, Base):
+    __tablename__ = "source_discoveries"
+    payload: Mapped[dict] = mapped_column(JSON)
+    credentials_ciphertext: Mapped[str | None] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -140,6 +182,23 @@ class ContentVersion(Identity, Base):
     fingerprint: Mapped[str] = mapped_column(String(64))
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
     parser_version: Mapped[str] = mapped_column(String(30), default="v1")
+
+
+class OriginalMaterial(Identity, Base):
+    """Original bytes attached to an identity-scoped immutable content version."""
+
+    __tablename__ = "original_materials"
+    __table_args__ = (
+        UniqueConstraint("version_id", "filename", "sha256", name="uq_original_material"),
+    )
+    version_id: Mapped[UUID] = mapped_column(ForeignKey("content_versions.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(200))
+    media_type: Mapped[str] = mapped_column(String(100))
+    original_url: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64))
+    size: Mapped[int] = mapped_column(Integer)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class LongTermProfile(Identity, Base):

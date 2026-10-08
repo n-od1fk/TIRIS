@@ -1,6 +1,7 @@
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -47,15 +48,25 @@ def store_items(session: Session, source: Source, result: FetchResult, run: Inge
     source.last_error = None
 
 
+def content_external_id(source, external_id):
+    return (
+        external_id
+        if (source.connection_version or 1) == 1
+        else f"connection:{source.connection_version}:{external_id}"
+    )
+
+
 def _store_one(session: Session, source: Source, raw: RawItem, now: datetime, run: IngestionRun):
     url = canonicalize_url(raw.url)
+    if raw.content_type == "conference_talk" and urlsplit(raw.url).fragment:
+        url += "#" + urlsplit(raw.url).fragment
     if not raw.external_id or not raw.title.strip():
         raise SourceError("缺少内容标识或标题")
     body_hash, fingerprint = content_fingerprint(raw)
     occurrence = session.scalar(
         select(ContentOccurrence).where(
             ContentOccurrence.source_id == source.id,
-            ContentOccurrence.external_id == raw.external_id,
+            ContentOccurrence.external_id == content_external_id(source, raw.external_id),
             ContentOccurrence.user_id == source.user_id,
         )
     )
@@ -111,7 +122,7 @@ def _store_one(session: Session, source: Source, raw: RawItem, now: datetime, ru
             user_id=source.user_id,
             source_id=source.id,
             item_id=item.id,
-            external_id=raw.external_id,
+            external_id=content_external_id(source, raw.external_id),
             original_url=raw.url,
             first_seen_at=now,
             last_seen_at=now,

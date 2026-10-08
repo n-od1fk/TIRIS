@@ -36,7 +36,7 @@ def test_unified_dispatch_rejects_invalid_inputs_before_network(kind, url):
 @pytest.mark.integration
 def test_api_validation_and_type_catalog_share_registry(api_client):
     catalog = api_client.get("/api/source-types").json()
-    assert {row["kind"] for row in catalog} == {"rss", "github", "blackhat"}
+    assert {row["kind"] for row in catalog} == {"rss", "github", "blackhat", "arxiv", "web"}
     for kind, url in [
         ("unknown", "https://example.com/rss"),
         ("github_search", "https://api.github.com/search/repositories?q=security"),

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from app.models import (
     Favorite,
     IngestionRun,
     Job,
+    OriginalMaterial,
     Source,
     UpdateNotice,
 )
@@ -53,13 +54,34 @@ class SourceRead(BaseModel):
     name: str
     kind: str
     url: str
+    input_url: str
+    fetch_url: str
+    access_type: str
+    validated_at: datetime | None
+    connection_version: int
+    credential_mode: str
+    credential_configured: bool
+    sync_supported: bool
     enabled: bool
     last_success_at: datetime | None
     last_error: str | None
 
 
 class SourcePatch(BaseModel):
-    enabled: bool
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    expected_version: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def valid_patch(self):
+        if self.enabled is None and self.name is None:
+            raise ValueError("请提供名称或启用状态")
+        if self.name is not None:
+            self.name = self.name.strip()
+            if not self.name:
+                raise ValueError("名称不能为空")
+        return self
 
 
 class SyncRequest(BaseModel):
@@ -102,21 +124,23 @@ def source_types():
     return public_source_types()
 
 
-@router.post("/sources", response_model=SourceRead, status_code=201)
+@router.post("/sources", response_model=SourceRead, status_code=201, deprecated=True)
 def create_source(body: SourceCreate, session: DB, config: Config):
     existing = session.scalar(
-        select(Source).where(
-            Source.user_id == config.user_id, Source.kind == body.kind, Source.url == body.url
-        )
+        select(Source)
+        .where(Source.user_id == config.user_id, Source.kind == body.kind, Source.url == body.url)
+        .with_for_update()
     )
     if existing and not existing.archived:
         raise HTTPException(409, "此来源已存在")
     if existing:
-        # Explicit re-add recovers an archived automatic template with its UUID intact.
+        # Explicit re-add recovers a removed connection with its UUID/history intact.
         existing.archived, existing.enabled, existing.name = False, True, body.name
         session.commit()
         return existing
-    source = Source(user_id=config.user_id, **body.model_dump())
+    source = Source(
+        user_id=config.user_id, input_url=body.url, access_type=body.kind, **body.model_dump()
+    )
     session.add(source)
     try:
         session.commit()
@@ -128,10 +152,57 @@ def create_source(body: SourceCreate, session: DB, config: Config):
 
 @router.patch("/sources/{source_id}", response_model=SourceRead)
 def patch_source(source_id: UUID, body: SourcePatch, session: DB, config: Config):
-    source = source_or_404(session, source_id, config.user_id)
-    source.enabled = body.enabled
+    source = session.scalar(
+        select(Source)
+        .where(Source.id == source_id, Source.user_id == config.user_id, Source.archived.is_(False))
+        .with_for_update()
+    )
+    if source is None:
+        raise HTTPException(404, "来源不存在")
+    if body.expected_version is not None and source.connection_version != body.expected_version:
+        raise HTTPException(409, "来源配置已变化，请刷新后编辑")
+    if body.enabled is not None:
+        source.enabled = body.enabled
+    if body.name is not None:
+        source.name = body.name
     session.commit()
     return source
+
+
+@router.delete("/sources/{source_id}")
+def delete_source(source_id: UUID, session: DB, config: Config):
+    source = session.scalar(
+        select(Source)
+        .where(Source.id == source_id, Source.user_id == config.user_id)
+        .with_for_update()
+    )
+    if source is None:
+        raise HTTPException(404, "来源不存在")
+    source.archived, source.enabled = True, False
+    now, reason = datetime.now(UTC), "来源已删除，任务已停止"
+    job_ids = session.scalars(
+        update(Job)
+        .where(
+            Job.source_id == source.id,
+            Job.user_id == config.user_id,
+            Job.status.in_(["queued", "running", "retrying"]),
+        )
+        .values(status="failed", error=reason, finished_at=now)
+        .returning(Job.id)
+    ).all()
+    if job_ids:
+        session.execute(
+            update(IngestionRun)
+            .where(IngestionRun.job_id.in_(job_ids), IngestionRun.status == "running")
+            .values(status="failed", error=reason, finished_at=now)
+        )
+    session.commit()
+    return {
+        "id": source.id,
+        "deleted": True,
+        "history_preserved": True,
+        "jobs_stopped": len(job_ids),
+    }
 
 
 @router.post("/sources/sync", response_model=JobRead, status_code=202)
@@ -309,6 +380,12 @@ def item_detail(item_id: UUID, session: DB, config: Config):
             ContentOccurrence.user_id == config.user_id,
         )
     ).all()
+    files = session.execute(
+        select(OriginalMaterial.version_id, OriginalMaterial.id, OriginalMaterial.filename).where(
+            OriginalMaterial.user_id == config.user_id,
+            OriginalMaterial.version_id.in_([v.id for v in versions]),
+        )
+    ).all()
     return {
         **serialize_item(item, versions[0] if versions else None),
         "favorite": session.scalar(
@@ -328,6 +405,12 @@ def item_detail(item_id: UUID, session: DB, config: Config):
                 "title": v.title,
                 "text": v.clean_text,
                 "evidence_scope": v.metadata_json.get("evidence_scope", ""),
+                "content_status": v.metadata_json.get("content_status"),
+                "materials": [
+                    {"filename": f.filename, "download_url": f"/api/platforms/materials/{f.id}"}
+                    for f in files
+                    if f.version_id == v.id
+                ],
             }
             for v in versions
         ],
@@ -402,8 +485,7 @@ def set_favorite(item_id: UUID, body: FavoriteRequest, session: DB, config: Conf
                     url=item.canonical_url,
                 )
             )
-        elif owned.archived:
-            owned.archived, owned.enabled = False, True
+        # A user-removed tracking connection stays removed until explicitly re-added.
     session.commit()
     return {
         "item_id": item.id,
